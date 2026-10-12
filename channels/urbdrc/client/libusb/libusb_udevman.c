@@ -26,6 +26,7 @@
 #include <winpr/crt.h>
 #include <winpr/cmdline.h>
 #include <winpr/collections.h>
+#include <winpr/sysinfo.h>
 
 #include <freerdp/addin.h>
 
@@ -902,6 +903,57 @@ static BOOL poll_libusb_events(UDEVMAN* udevman)
 	return rc > 0;
 }
 
+/* Transfers still queued on the devices, after cancelling them when cancel is TRUE. */
+static size_t udevman_pending_transfers(UDEVMAN* udevman, BOOL cancel)
+{
+	size_t count = 0;
+	IUDEVMAN* idevman = &udevman->iface;
+
+	idevman->loading_lock(idevman);
+	idevman->rewind(idevman);
+
+	while (idevman->has_next(idevman))
+	{
+		IUDEVICE* idev = idevman->get_next(idevman);
+		UDEVICE* dev = (UDEVICE*)idev;
+
+		if (!dev || !dev->request_queue)
+			continue;
+
+		if (cancel)
+			idev->cancel_all_transfer_request(idev);
+		count += ArrayList_Count(dev->request_queue);
+	}
+
+	idevman->loading_unlock(idevman);
+	return count;
+}
+
+/* The devices are freed after this thread has ended (udevman_free), and udev_free waits until their
+ * cancelled transfers have left the queue, which happens only while libusb events are handled.
+ * Cancel what is still pending while this thread can still complete it, so that the queues are
+ * empty when the devices are freed. */
+static void udevman_complete_pending_transfers(UDEVMAN* udevman)
+{
+	const UINT64 end = GetTickCount64() + 5000;
+
+	if (udevman_pending_transfers(udevman, TRUE) == 0)
+		return;
+
+	while (udevman_pending_transfers(udevman, FALSE) > 0)
+	{
+		struct timeval tv = { 0, 100000 };
+
+		if (GetTickCount64() > end)
+		{
+			WLog_ERR(TAG, "%" PRIuz " USB transfer(s) still pending after 5 s",
+			         udevman_pending_transfers(udevman, FALSE));
+			break;
+		}
+		(void)libusb_handle_events_timeout_completed(udevman->context, &tv, nullptr);
+	}
+}
+
 static DWORD WINAPI poll_thread(LPVOID lpThreadParameter)
 {
 	libusb_hotplug_callback_handle handle = 0;
@@ -934,6 +986,8 @@ static DWORD WINAPI poll_thread(LPVOID lpThreadParameter)
 	/* Process remaining usb events */
 	while (poll_libusb_events(udevman))
 		;
+
+	udevman_complete_pending_transfers(udevman);
 
 	ExitThread(0);
 	return 0;
