@@ -1872,7 +1872,10 @@ static BOOL run_timers(rdpUdp* udp)
 	/* stuck: chunks have been waiting behind a hole, and nothing moved, for the whole timeout */
 	const UINT64 progress =
 	    (udp->bufferingSince > udp->lastDelivery) ? udp->bufferingSince : udp->lastDelivery;
-	if ((udp->buffered > 0) && (now - progress > RDPUDP_STALL_TIMEOUT_MS))
+	/* v3_deliver_ready above may just have delivered, after now was taken: lastDelivery can be
+	 * later than now, and the unsigned difference would wrap around to a stall of ages */
+	const UINT64 waited = (now > progress) ? now - progress : 0;
+	if ((udp->buffered > 0) && (waited > RDPUDP_STALL_TIMEOUT_MS))
 	{
 		rdpudp_fail(udp, "the stream is stuck behind a chunk the server no longer resends");
 		return FALSE;
