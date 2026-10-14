@@ -1056,7 +1056,7 @@ rdpSettings* freerdp_settings_new(DWORD flags)
 #if defined(WITH_RDPEUDP)
 		/* A client with UDP multitransport implements Soft-Sync (drdynvc), a server does not. */
 		if (!server)
-			multitransportFlags |= SOFTSYNC_TCP_TO_UDP;
+			multitransportFlags |= SOFTSYNC_TCP_TO_UDP | TRANSPORT_TYPE_UDP_PREFERRED;
 		/* A server has no UDP side, so it offers no tunnel: it waits for the client's Initiate
 		 * Multitransport Response, which a client that tries the tunnel only sends once the tunnel
 		 * failed. */
