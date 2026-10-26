@@ -360,6 +360,36 @@ static UINT ecam_dev_process_stop_streams_request(CameraDevice* dev,
 	return ecam_channel_send_generic_msg(dev->ecam, hchannel, CAM_MSG_ID_SuccessResponse);
 }
 
+/* The media types above the largest resolution of the options (maxres) are not offered: the server
+ * would pick the largest, more than a small device can capture and encode in time. When the camera
+ * has nothing that small, its smallest stays. */
+static size_t ecam_filter_max_resolution(const CameraPlugin* ecam, CAM_MEDIA_TYPE_DESCRIPTION* types,
+                                         size_t n)
+{
+	WINPR_ASSERT(ecam);
+	if ((ecam->maxWidth == 0) || (ecam->maxHeight == 0) || (n == 0))
+		return n;
+
+	size_t k = 0;
+	for (size_t i = 0; i < n; i++)
+	{
+		if ((types[i].Width <= ecam->maxWidth) && (types[i].Height <= ecam->maxHeight))
+			types[k++] = types[i];
+	}
+	if (k > 0)
+		return k;
+
+	size_t smallest = 0;
+	for (size_t i = 1; i < n; i++)
+	{
+		if (1ull * types[i].Width * types[i].Height <
+		    1ull * types[smallest].Width * types[smallest].Height)
+			smallest = i;
+	}
+	types[0] = types[smallest];
+	return 1;
+}
+
 WINPR_ATTR_NODISCARD
 static BOOL media_type_valid(CameraDevice* dev, UINT8 streamIndex,
                              const CAM_MEDIA_TYPE_DESCRIPTION* type)
@@ -378,6 +408,7 @@ static BOOL media_type_valid(CameraDevice* dev, UINT8 streamIndex,
 	if (formatIndex < 0)
 		return FALSE;
 
+	nMediaTypes = ecam_filter_max_resolution(dev->ecam, supported, nMediaTypes);
 	for (size_t x = 0; x < nMediaTypes; x++)
 	{
 		CAM_MEDIA_TYPE_DESCRIPTION cur = supported[x];
@@ -733,6 +764,7 @@ static UINT ecam_dev_process_media_type_list_request(CameraDevice* dev,
 	}
 
 	stream->formats = supportedFormats[formatIndex];
+	nMediaTypes = ecam_filter_max_resolution(dev->ecam, mediaTypes, nMediaTypes);
 
 	/* replacing inputFormat with outputFormat in mediaTypes before sending response */
 	for (size_t i = 0; i < nMediaTypes; i++)

@@ -538,6 +538,8 @@ static UINT ecam_load_hal_plugin(CameraPlugin* ecam, const char* name, const ADD
  *   h264     offer the H.264 a camera produces itself (off, the default of OpenThinRDP: the camera is
  *            read in MJPEG or raw and encoded here, where a frame that comes too late can be dropped)
  *   hwaccel  encode on the hardware (VA-API...) when the build has it (on, the default of OpenThinRDP)
+ *   maxres   the largest resolution offered to the server, <width>x<height> (1920x1080); 0 or none: the
+ *            largest of the camera (the default)
  */
 static BOOL ecam_option_on(const char* value, BOOL def)
 {
@@ -557,6 +559,8 @@ static BOOL ecam_process_addin_args(CameraPlugin* ecam, const ADDIN_ARGV* args)
 		  "offer the H.264 of the camera itself" },
 		{ "hwaccel", COMMAND_LINE_VALUE_REQUIRED, "<on|off>", nullptr, nullptr, -1, nullptr,
 		  "encode on the hardware" },
+		{ "maxres", COMMAND_LINE_VALUE_REQUIRED, "<width>x<height>", nullptr, nullptr, -1, nullptr,
+		  "the largest resolution offered" },
 		{ nullptr, 0, nullptr, nullptr, nullptr, -1, nullptr, nullptr }
 	};
 
@@ -577,9 +581,25 @@ static BOOL ecam_process_addin_args(CameraPlugin* ecam, const ADDIN_ARGV* args)
 			ecam->h264Source = ecam_option_on(arg->Value, ecam->h264Source);
 		else if (strcmp(arg->Name, "hwaccel") == 0)
 			ecam->hwAccel = ecam_option_on(arg->Value, ecam->hwAccel);
+		else if (strcmp(arg->Name, "maxres") == 0)
+		{
+			unsigned w = 0;
+			unsigned h = 0;
+			if ((sscanf(arg->Value, "%ux%u", &w, &h) == 2) && (w > 0) && (h > 0))
+			{
+				ecam->maxWidth = w;
+				ecam->maxHeight = h;
+			}
+			else
+			{
+				ecam->maxWidth = 0;
+				ecam->maxHeight = 0;
+			}
+		}
 	}
-	WLog_INFO(TAG, "camera options: h264 %s, hwaccel %s", ecam->h264Source ? "on" : "off",
-	          ecam->hwAccel ? "on" : "off");
+	WLog_INFO(TAG, "camera options: h264 %s, hwaccel %s, maxres %" PRIu32 "x%" PRIu32,
+	          ecam->h264Source ? "on" : "off", ecam->hwAccel ? "on" : "off", ecam->maxWidth,
+	          ecam->maxHeight);
 	return TRUE;
 }
 

@@ -78,6 +78,9 @@ typedef struct
 	/* options: offer the H.264 a camera produces itself, encode on the hardware */
 	BOOL h264Source;
 	BOOL hwAccel;
+	/* the largest resolution offered to the server, 0 = the largest of the camera */
+	UINT32 maxWidth;
+	UINT32 maxHeight;
 } CameraPlugin;
 
 typedef struct
