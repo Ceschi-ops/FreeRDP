@@ -110,6 +110,9 @@ static BOOL ecam_init_video_context(CameraDeviceStream* stream)
 		return FALSE;
 	}
 
+	if (!freerdp_video_context_set_hw_accel(stream->video, stream->hwAccel))
+		return FALSE;
+
 	return TRUE;
 }
 

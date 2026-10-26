@@ -58,6 +58,7 @@ struct s_FREERDP_VIDEO_CONTEXT
 
 	H264_CONTEXT* h264;
 	BOOL h264Configured;
+	BOOL hwAccel;
 	UINT32 h264Framerate;
 	UINT32 h264Bitrate;
 	UINT32 h264UsageType;
@@ -236,6 +237,19 @@ static UINT32 video_get_h264_bitrate(wLog* log, UINT32 height)
 	return 0;
 }
 
+BOOL freerdp_video_context_set_hw_accel(FREERDP_VIDEO_CONTEXT* context, BOOL enable)
+{
+	if (!context)
+		return FALSE;
+
+	if (context->hwAccel != enable)
+	{
+		context->hwAccel = enable;
+		context->h264Configured = FALSE;
+	}
+	return TRUE;
+}
+
 BOOL freerdp_video_context_reconfigure(FREERDP_VIDEO_CONTEXT* context, UINT32 width, UINT32 height,
                                        UINT32 framerate, UINT32 bitrate, UINT32 usageType)
 {
@@ -276,7 +290,7 @@ BOOL freerdp_video_context_reconfigure(FREERDP_VIDEO_CONTEXT* context, UINT32 wi
 	if (!h264_context_set_option(context->h264, H264_CONTEXT_OPTION_QP, 26))
 		goto fail;
 
-	if (!h264_context_set_option(context->h264, H264_CONTEXT_OPTION_HW_ACCEL, FALSE))
+	if (!h264_context_set_option(context->h264, H264_CONTEXT_OPTION_HW_ACCEL, context->hwAccel))
 		goto fail;
 
 	if (!context->h264Configured || (context->width != width) || (context->height != height))

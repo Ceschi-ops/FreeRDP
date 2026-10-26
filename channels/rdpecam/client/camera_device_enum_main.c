@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 
+#include <winpr/cmdline.h>
 #include <winpr/assert.h>
 #include <winpr/cast.h>
 #include <winpr/string.h>
@@ -533,6 +534,56 @@ static UINT ecam_load_hal_plugin(CameraPlugin* ecam, const char* name, const ADD
 }
 
 /**
+ * The options of the channel: /dvc:rdpecam,h264:off,hwaccel:on
+ *   h264     offer the H.264 a camera produces itself (on, the default); off: the camera is read in
+ *            MJPEG or raw and encoded here, where a frame that comes too late can be dropped
+ *   hwaccel  encode on the hardware (VA-API...) when the build has it (off, the default)
+ */
+static BOOL ecam_option_on(const char* value, BOOL def)
+{
+	if (!value)
+		return def;
+	if ((_stricmp(value, "on") == 0) || (_stricmp(value, "1") == 0) || (_stricmp(value, "true") == 0))
+		return TRUE;
+	if ((_stricmp(value, "off") == 0) || (_stricmp(value, "0") == 0) || (_stricmp(value, "false") == 0))
+		return FALSE;
+	return def;
+}
+
+static BOOL ecam_process_addin_args(CameraPlugin* ecam, const ADDIN_ARGV* args)
+{
+	COMMAND_LINE_ARGUMENT_A ecam_args[] = {
+		{ "h264", COMMAND_LINE_VALUE_REQUIRED, "<on|off>", nullptr, nullptr, -1, nullptr,
+		  "offer the H.264 of the camera itself" },
+		{ "hwaccel", COMMAND_LINE_VALUE_REQUIRED, "<on|off>", nullptr, nullptr, -1, nullptr,
+		  "encode on the hardware" },
+		{ nullptr, 0, nullptr, nullptr, nullptr, -1, nullptr, nullptr }
+	};
+
+	if (!args || args->argc <= 1)
+		return TRUE;
+
+	const DWORD flags =
+	    COMMAND_LINE_SIGIL_NONE | COMMAND_LINE_SEPARATOR_COLON | COMMAND_LINE_IGN_UNKNOWN_KEYWORD;
+	if (CommandLineParseArgumentsA(args->argc, args->argv, ecam_args, flags, ecam, nullptr,
+	                               nullptr) != 0)
+		return FALSE;
+
+	for (const COMMAND_LINE_ARGUMENT_A* arg = ecam_args; arg->Name; arg++)
+	{
+		if (!(arg->Flags & COMMAND_LINE_VALUE_PRESENT))
+			continue;
+		if (strcmp(arg->Name, "h264") == 0)
+			ecam->h264Source = ecam_option_on(arg->Value, ecam->h264Source);
+		else if (strcmp(arg->Name, "hwaccel") == 0)
+			ecam->hwAccel = ecam_option_on(arg->Value, ecam->hwAccel);
+	}
+	WLog_INFO(TAG, "camera options: h264 %s, hwaccel %s", ecam->h264Source ? "on" : "off",
+	          ecam->hwAccel ? "on" : "off");
+	return TRUE;
+}
+
+/**
  * Function description
  *
  * @return 0 on success, otherwise a Win32 error code
@@ -557,6 +608,10 @@ FREERDP_ENTRY_POINT(UINT VCAPITYPE rdpecam_DVCPluginEntry(IDRDYNVC_ENTRY_POINTS*
 	}
 
 	ecam->attached = TRUE;
+	ecam->h264Source = TRUE;
+	ecam->hwAccel = FALSE;
+	if (!ecam_process_addin_args(ecam, pEntryPoints->GetPluginData(pEntryPoints)))
+		WLog_WARN(TAG, "the options of the camera channel could not be read, the defaults are used");
 	ecam->iface.Initialize = ecam_plugin_initialize;
 	ecam->iface.Connected = nullptr; /* server connects to client */
 	ecam->iface.Disconnected = nullptr;

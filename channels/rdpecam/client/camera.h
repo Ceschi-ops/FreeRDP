@@ -74,6 +74,10 @@ typedef struct
 	wHashTable* devices;
 
 	BOOL connected;
+
+	/* options: offer the H.264 a camera produces itself, encode on the hardware */
+	BOOL h264Source;
+	BOOL hwAccel;
 } CameraPlugin;
 
 typedef struct
@@ -101,6 +105,7 @@ typedef struct
 	wStream* sampleRespBuffer;
 
 	FREERDP_VIDEO_CONTEXT* video;
+	BOOL hwAccel;
 } CameraDeviceStream;
 
 /* Internal callback result asking a request-driven HAL to release the capture device. */

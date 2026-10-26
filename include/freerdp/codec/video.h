@@ -107,6 +107,21 @@ extern "C"
 	                                                    FREERDP_VIDEO_FORMAT dstFormat);
 
 	/**
+	 * @brief Use hardware acceleration for the H.264 encoder (off by default)
+	 *
+	 * Takes effect at the next freerdp_video_context_reconfigure. When the hardware is not
+	 * available the encoder falls back to software.
+	 *
+	 * @param context Video context
+	 * @param enable TRUE to request hardware acceleration
+	 * @return TRUE on success, FALSE on failure
+	 * @since version 3.34.0
+	 */
+	WINPR_ATTR_NODISCARD
+	FREERDP_API BOOL freerdp_video_context_set_hw_accel(FREERDP_VIDEO_CONTEXT* context,
+	                                                    BOOL enable);
+
+	/**
 	 * @brief Configure H.264 encoder settings
 	 *
 	 * Must be called before the first encoding operation. Should be called again

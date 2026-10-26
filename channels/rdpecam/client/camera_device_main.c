@@ -37,7 +37,7 @@
  * @return Pointer to format array
  */
 WINPR_ATTR_NODISCARD
-static const CAM_MEDIA_FORMAT_INFO* getSupportedFormats(size_t* pCount)
+static const CAM_MEDIA_FORMAT_INFO* getSupportedFormats(size_t* pCount, BOOL h264Source)
 {
 	WINPR_ASSERT(pCount);
 
@@ -46,12 +46,14 @@ static const CAM_MEDIA_FORMAT_INFO* getSupportedFormats(size_t* pCount)
 		                                   CAM_MEDIA_FORMAT_I420, CAM_MEDIA_FORMAT_RGB24,
 		                                   CAM_MEDIA_FORMAT_RGB32 };
 
+	/* two lists: with the H.264 of the camera itself, and without it (h264:off) */
 	static CAM_MEDIA_FORMAT_INFO
-	    formats[ARRAYSIZE(available) * ARRAYSIZE(available)]; /* Max possible formats */
-	static size_t count = 0;
-	static BOOL initialized = FALSE;
+	    formats[2][ARRAYSIZE(available) * ARRAYSIZE(available)]; /* Max possible formats */
+	static size_t count[2] = { 0 };
+	static BOOL initialized[2] = { FALSE };
+	const size_t l = h264Source ? 0 : 1;
 
-	if (!initialized)
+	if (!initialized[l])
 	{
 		for (size_t dst = 0; dst < ARRAYSIZE(available); dst++)
 		{
@@ -60,18 +62,20 @@ static const CAM_MEDIA_FORMAT_INFO* getSupportedFormats(size_t* pCount)
 			for (size_t src = 0; src < ARRAYSIZE(available); src++)
 			{
 				const CAM_MEDIA_FORMAT srcFormat = available[src];
+				if (!h264Source && (srcFormat == CAM_MEDIA_FORMAT_H264))
+					continue;
 				if (freerdp_video_conversion_supported(ecamToVideoFormat(srcFormat),
 				                                       ecamToVideoFormat(dstFormat)))
 				{
-					formats[count++] = (CAM_MEDIA_FORMAT_INFO){ srcFormat, dstFormat };
+					formats[l][count[l]++] = (CAM_MEDIA_FORMAT_INFO){ srcFormat, dstFormat };
 				}
 			}
 		}
-		initialized = TRUE;
+		initialized[l] = TRUE;
 	}
 
-	*pCount = count;
-	return formats;
+	*pCount = count[l];
+	return formats[l];
 }
 
 static void ecam_dev_write_media_type(wStream* s, const CAM_MEDIA_TYPE_DESCRIPTION* mediaType)
@@ -367,7 +371,7 @@ static BOOL media_type_valid(CameraDevice* dev, UINT8 streamIndex,
 	size_t nMediaTypes = ARRAYSIZE(supported);
 
 	size_t nSupportedFormats = 0;
-	const CAM_MEDIA_FORMAT_INFO* supportedFormats = getSupportedFormats(&nSupportedFormats);
+	const CAM_MEDIA_FORMAT_INFO* supportedFormats = getSupportedFormats(&nSupportedFormats, dev->ecam->h264Source);
 	INT16 formatIndex =
 	    dev->ihal->GetMediaTypeDescriptions(dev->ihal, dev->deviceId, streamIndex, supportedFormats,
 	                                        nSupportedFormats, supported, &nMediaTypes);
@@ -438,6 +442,7 @@ static UINT ecam_dev_process_start_streams_request(CameraDevice* dev,
 	 * to be done before calling ecam_encoder_context_init
 	 */
 	stream->currMediaType = mediaType;
+	stream->hwAccel = dev->ecam->hwAccel;
 
 	if (!ecam_encoder_context_init(stream))
 	{
@@ -714,7 +719,7 @@ static UINT ecam_dev_process_media_type_list_request(CameraDevice* dev,
 	}
 
 	size_t nSupportedFormats = 0;
-	const CAM_MEDIA_FORMAT_INFO* supportedFormats = getSupportedFormats(&nSupportedFormats);
+	const CAM_MEDIA_FORMAT_INFO* supportedFormats = getSupportedFormats(&nSupportedFormats, dev->ecam->h264Source);
 
 	INT16 formatIndex =
 	    dev->ihal->GetMediaTypeDescriptions(dev->ihal, dev->deviceId, streamIndex, supportedFormats,
