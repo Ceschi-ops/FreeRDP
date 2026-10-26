@@ -535,9 +535,9 @@ static UINT ecam_load_hal_plugin(CameraPlugin* ecam, const char* name, const ADD
 
 /**
  * The options of the channel: /dvc:rdpecam,h264:off,hwaccel:on
- *   h264     offer the H.264 a camera produces itself (on, the default); off: the camera is read in
- *            MJPEG or raw and encoded here, where a frame that comes too late can be dropped
- *   hwaccel  encode on the hardware (VA-API...) when the build has it (off, the default)
+ *   h264     offer the H.264 a camera produces itself (off, the default of OpenThinRDP: the camera is
+ *            read in MJPEG or raw and encoded here, where a frame that comes too late can be dropped)
+ *   hwaccel  encode on the hardware (VA-API...) when the build has it (on, the default of OpenThinRDP)
  */
 static BOOL ecam_option_on(const char* value, BOOL def)
 {
@@ -608,8 +608,8 @@ FREERDP_ENTRY_POINT(UINT VCAPITYPE rdpecam_DVCPluginEntry(IDRDYNVC_ENTRY_POINTS*
 	}
 
 	ecam->attached = TRUE;
-	ecam->h264Source = TRUE;
-	ecam->hwAccel = FALSE;
+	ecam->h264Source = FALSE;
+	ecam->hwAccel = TRUE;
 	if (!ecam_process_addin_args(ecam, pEntryPoints->GetPluginData(pEntryPoints)))
 		WLog_WARN(TAG, "the options of the camera channel could not be read, the defaults are used");
 	ecam->iface.Initialize = ecam_plugin_initialize;
